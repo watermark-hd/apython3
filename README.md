@@ -28,12 +28,18 @@
 ## 実行方法（M2 側から）
 
 ```sh
-./run.sh 00_recon                 # 環境確認
-./run.sh 10_brew_bootstrap        # 補助ツール
-./run.sh 20_toolchain             # gcc 14（bottle）
-./run.sh 30_deps                  # C ライブラリ群
-./run.sh 40_build_cpython         # ★本体ビルド（1〜3時間 + 反復）
-./run.sh 45_smoke                 # ssl / ctypes / sqlite / TLS 実接続
+# --- 前提: toolchain 環境づくり（Tiger 税。ここが本番前の山） ---
+./run.sh 05_xcode25               # Xcode 2.5 DMG 検証 + 手動インストール手順表示
+#   ↑ 表示された hdiutil/installer コマンドを iBook で手実行（root パスワード要）
+./run.sh 11_rebootstrap_brew      # 現行 tigerbrew を /usr/local に上書き（pkgutil バグ等を解消）
+./run.sh 12_cctools               # cctools/ld64 をソースビルド → bottle が pour 可能に
+
+# --- ここから Python ---
+./run.sh 10_brew_bootstrap        # gpatch / pkg-config / xz
+./run.sh 20_toolchain             # gcc 14（bottle。ダメならソース）
+./run.sh 30_deps                  # openssl3 / libffi / sqlite / readline / gdbm / zlib
+./run.sh 40_build_cpython         # ★本体ビルド（1〜3時間 + patch 反復）
+./run.sh 45_smoke                 # ssl / ctypes(qsort callback) / sqlite / TLS 実接続
 ./run.sh 50_pip                   # pip 最新化 + 証明書
 ./run.sh 60_web                   # flask / django 疎通
 
@@ -41,6 +47,14 @@
 ```
 
 `run.sh` は rsync 後、iBook 側で `nohup` 実行するので SSH が切れても継続する。
+
+## いまの状態（2026-08-29）
+
+- 環境調査完了。tigerbrew は **機能不全**（bottle が pour 不可 / 10.4u SDK 無し /
+  brew 0.9.5 が pkgutil 不在でハードエラー）。詳細は `notes/obstacles.md`。
+- 方針: **Path C 継続 — Xcode 2.5 → tigerbrew 再ブートストラップ → cctools → gcc**。
+- Xcode 2.5 DMG（903MB, md5 3bd6c24d…）を iBook の `~/apython3/dl/` に取得中。
+  取得後、ユーザーが `sudo installer` で導入 → `11` → `12` へ。
 
 ## 想定される詰まりどころ
 

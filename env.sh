@@ -31,6 +31,12 @@ export MACOSX_DEPLOYMENT_TARGET=10.4
 # 依存の prefix を解決するヘルパ（brew --prefix は 0.9.5 だと遅いので opt を直接見る）
 brew_opt() { echo "$BREW_PREFIX/opt/$1"; }
 
+# formula がインストール済みか（brew 0.9.5 の `brew list --versions X` は
+# 未インストールでも exit 0 で空を返すので、Cellar の実体で判定する）
+brew_installed() { [ -d "$BREW_PREFIX/Cellar/$1" ] && [ -n "$(ls -A "$BREW_PREFIX/Cellar/$1" 2>/dev/null)" ]; }
+
+BREW="$BREW_PREFIX/bin/brew"
+
 mkdir -p "$WORK" "$DL"
 
 echo "[env] PY_VERSION=$PY_VERSION PREFIX=$PREFIX CC=$CC"

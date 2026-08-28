@@ -1,22 +1,30 @@
 #!/bin/bash
-# モダン GCC を入れる。tigerbrew の gcc formula は 14.2.0 で
-# :tiger_altivec の bottle（プリビルド）があるため、自力ビルドは基本不要。
+# モダン GCC を入れる。cctools/ld64（scripts/12）が入っていれば
+# gcc 14.2.0 の :tiger_altivec bottle が pour できるはず。ダメならソースビルド。
 . "$(dirname "$0")/../env.sh"
 
-BREW="$BREW_PREFIX/bin/brew"
+if [ ! -d /Developer/SDKs/MacOSX10.4u.sdk ]; then
+  echo "!! 10.4u SDK が無い。先に Xcode 2.5。"; exit 1
+fi
 
-if [ -x "$CC" ]; then
-  echo "既に存在: $CC"
+if brew_installed gcc && [ -x "$CC" ]; then
+  echo "既にインストール済み:"
   "$CC" --version | head -1
 else
-  echo "==== brew install gcc（bottle。依存: gmp mpfr libmpc isl zlib cctools ld64） ===="
-  # --force-bottle: 何があってもソースビルドに落とさない（G4 では致命的に遅い）
-  "$BREW" install --force-bottle gcc 2>&1 | tail -60 \
-    || "$BREW" install gcc 2>&1 | tail -80
+  echo "==== brew install gcc（まず bottle、ダメならソース） ===="
+  if ! "$BREW" install --force-bottle gcc 2>&1 | tail -60; then
+    echo "---- bottle 失敗。ソースビルドに切替（G4 で数時間〜） ----"
+    "$BREW" install --build-from-source gcc 2>&1 | tail -80
+  fi
 fi
 
 echo
-echo "==== 検証: gcc-14 が動くか ===="
+if [ ! -x "$CC" ]; then
+  echo "!! $CC が生成されなかった。logs を確認すること。"
+  exit 1
+fi
+
+echo "==== 検証: gcc-14 / g++-14 ===="
 "$CC" --version | head -1
 "$CXX" --version | head -1
 
@@ -24,18 +32,18 @@ echo "==== 検証: C11 コンパイル ===="
 cat > "$WORK/c11test.c" <<'EOF'
 #include <stdio.h>
 #include <stdatomic.h>
-#include <stdalign.h>
 _Static_assert(sizeof(int) == 4, "int must be 32-bit");
 int main(void) {
     _Atomic int a = 0;
     atomic_fetch_add(&a, 41);
     int b = _Generic(1, int: 1, default: 0);
-    printf("c11 ok a=%d b=%d endian=%s\n", a + b,
-           b, (*(char*)&(int){1}) ? "little" : "big");
+    printf("c11 ok a=%d endian=%s\n", a + b,
+           (*(char*)&(int){1}) ? "little" : "big");
     return 0;
 }
 EOF
-"$CC" -std=c11 -O2 "$WORK/c11test.c" -o "$WORK/c11test" && "$WORK/c11test"
+"$CC" -std=c11 -O2 "$WORK/c11test.c" -o "$WORK/c11test" || { echo "!! C11 コンパイル失敗"; exit 1; }
+"$WORK/c11test" || { echo "!! C11 実行失敗"; exit 1; }
 
 echo "==== 検証: C++11 ===="
 cat > "$WORK/cxx11test.cpp" <<'EOF'
@@ -43,7 +51,8 @@ cat > "$WORK/cxx11test.cpp" <<'EOF'
 #include <cstdio>
 int main(){ auto p = std::make_shared<int>(42); std::printf("cxx11 ok %d\n", *p); }
 EOF
-"$CXX" -std=c++11 -O2 "$WORK/cxx11test.cpp" -o "$WORK/cxx11test" && "$WORK/cxx11test"
+"$CXX" -std=c++11 -O2 "$WORK/cxx11test.cpp" -o "$WORK/cxx11test" || { echo "!! C++11 失敗"; exit 1; }
+"$WORK/cxx11test" || { echo "!! C++11 実行失敗"; exit 1; }
 
 echo
 echo "toolchain OK"

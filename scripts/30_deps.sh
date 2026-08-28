@@ -8,16 +8,18 @@
 #   gdbm     : dbm.gnu（任意）
 #   zlib     : _zlib（システムは 1.2.3。念のため新しめを）
 . "$(dirname "$0")/../env.sh"
-BREW="$BREW_PREFIX/bin/brew"
+
+if [ ! -x "$CC" ]; then echo "!! gcc-14 が無い。先に 20_toolchain。"; exit 1; fi
 
 DEPS="openssl3 libffi sqlite xz readline gdbm zlib"
 for f in $DEPS; do
-  if "$BREW" list --versions "$f" >/dev/null 2>&1; then
-    echo "already: $($BREW list --versions $f)"
+  if brew_installed "$f"; then
+    echo "already: $f $(ls "$BREW_PREFIX/Cellar/$f")"
   else
     echo "==== install: $f ===="
     "$BREW" install --force-bottle "$f" 2>&1 | tail -30 \
-      || "$BREW" install "$f" 2>&1 | tail -60
+      || "$BREW" install --build-from-source "$f" 2>&1 | tail -60
+    brew_installed "$f" || echo "!! $f インストールできず"
   fi
 done
 
