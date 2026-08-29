@@ -17,8 +17,8 @@ for f in $DEPS; do
     echo "already: $f $(ls "$BREW_PREFIX/Cellar/$f")"
   else
     echo "==== install: $f ===="
-    "$BREW" install --force-bottle "$f" 2>&1 | tail -30 \
-      || "$BREW" install --build-from-source "$f" 2>&1 | tail -60
+    "$BREW" install --env=std --force-bottle "$f" 2>&1 | tail -30 \
+      || "$BREW" install --env=std --build-from-source "$f" 2>&1 | tail -60
     brew_installed "$f" || echo "!! $f インストールできず"
   fi
 done

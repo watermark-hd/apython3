@@ -7,15 +7,23 @@ if [ ! -d /Developer/SDKs/MacOSX10.4u.sdk ]; then
   echo "!! 10.4u SDK が無い。先に Xcode 2.5。"; exit 1
 fi
 
+# このシステムでは superenv の cc シムが壊れている（Ruby.framework shebang）ため
+# 常に --env=std を使う。bottle は env 非依存、source dep のみ std env でビルドされる。
+ENVSTD="--env=std"
+
 if brew_installed gcc && [ -x "$CC" ]; then
   echo "既にインストール済み:"
   "$CC" --version | head -1
 else
-  echo "==== brew install gcc（まず bottle、ダメならソース） ===="
-  if ! "$BREW" install --force-bottle gcc 2>&1 | tail -60; then
-    echo "---- bottle 失敗。ソースビルドに切替（G4 で数時間〜） ----"
-    "$BREW" install --build-from-source gcc 2>&1 | tail -80
-  fi
+  echo "==== bottle 無し依存を先に std env でソースビルド（mpfr / libmpc / isl） ===="
+  for d in mpfr libmpc isl; do
+    brew_installed "$d" && { echo "  already: $d"; continue; }
+    echo "  -- $d --"
+    "$BREW" install $ENVSTD --build-from-source "$d" 2>&1 | tail -15
+    brew_installed "$d" || { echo "!! $d ビルド失敗"; exit 1; }
+  done
+  echo "==== brew install gcc（gmp/mpfr/libmpc/isl/cctools/ld64 は導入済み → gcc bottle を pour） ===="
+  "$BREW" install $ENVSTD gcc 2>&1 | tail -60
 fi
 
 echo
