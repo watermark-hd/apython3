@@ -243,3 +243,33 @@ sys.byteorder = big / macOS-10.4.11-Power_Macintosh-powerpc-32bit
 ### 残タスク
 - 45_smoke の TLS(pypi 実接続) / sqlite 結果確認
 - 50_pip（証明書設定）→ 60_web（flask / django）
+
+## 2026-08-30 (10) ★★ Flask / Django 動作確認 — プロジェクト目標達成 ★★
+
+- `pip install flask` → **flask 3.1.3** + werkzeug/jinja2/click/blinker/itsdangerous
+  - `markupsafe` の C 拡張を **G4 上でソースビルド** →
+    `markupsafe-3.0.3-cp312-cp312-macosx_10_4_ppc.whl`（ネイティブ PPC wheel 生成）
+  - `flask run` → `GET / → 200` / JSON レスポンス正常
+- `pip install "django>=5.2,<5.3"` → **django 5.2.17** + asgiref 3.12.1 + sqlparse 0.6.0
+  - `django-admin startproject` OK
+  - `manage.py migrate` → 組み込み 18 マイグレーション全て SQLite に適用 OK
+  - `manage.py runserver` → **HTTP 200**
+
+### 結論
+**Mac OS X 10.4.11 Tiger / PowerPC G4 上で、CPython 3.12.11 + pip + Flask 3.1.3 +
+Django 5.2.17 が動作。** 当初調査した限り前例のない組み合わせ。
+
+### 効くもの / 効かないもの
+- ✅ 純 Python パッケージ全般、C 拡張がビルドできるもの（markupsafe 実証）
+- ✅ Flask, Django(+SQLite), TLS/HTTPS, pip, ctypes
+- ❌ Rust 必須のもの（cryptography>=3.4, pydantic-core, orjson, ruff, polars …）
+     → 必要時は `cryptography<3.4`（CFFI 版）にピン。Django コアは不要。
+- △ numpy/scipy/Pillow/lxml（重い C 拡張。BLAS 等は /usr/lib に SDK 由来のものあり）
+- ｰ `_tkinter` 未ビルド（Tcl/Tk 無し・GUI 用途外）
+
+### 残タスク（任意）
+1. パッケージ化: `~/apython312` + `/usr/local`(tigerbrew) の再配置可能 tarball
+   （バックアップ & PowerBook G4 TiBook への移送用）
+2. 公開: README をビルドガイド化 → GitHub、MacRumors PPC 板、
+   tigerbrew へ PR（os/mac.rb の pkgutil 修正 + patches/0001-0003）
+3. TiBook への移送スクリプト
