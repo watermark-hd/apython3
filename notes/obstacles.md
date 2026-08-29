@@ -130,3 +130,21 @@ isl → **gcc 14.2.0 bottle pour**。次の関門は「gcc bottle が pour で�
 現役で bottle も通り `python312` はほぼ解決済み。iBook G4 1.2GHz は Leopard 対応。
 → 予備パーティションに Leopard を入れて dual-boot し、そちらで 3.12 を扱うのが
 実務的には最短。要ユーザー判断。
+
+## 2026-08-29 (4) GCC 14.2.0 導入成功 — toolchain 完成
+
+- `brew install --force-bottle gcc` で GCC 14.2.0 の tiger_altivec bottle が pour 成功
+  （依存 mpfr/libmpc/isl/cctools/ld64/gmp/zlib/gettext/texinfo/perl は先に導入済み）。
+- `--force-bottle` 必須：外すと brew がソースビルドを試み「gcc cannot be built with
+  any available compilers（GCC 4.0.1 では GCC 14 は無理）」で停止する。
+- 検証: `-std=c11 -Werror` で `_Static_assert` / `_Generic` / `<stdatomic.h>` /
+  無名 struct・union OK。`endian=BE` 確認。C++17（make_unique/vector/string）OK。
+  bundle（`-bundle -undefined dynamic_lookup`、Python C 拡張形式）OK。
+- 既知の無害な傷: 毎リンクで `ld: warning: ... -mlong-branch ... /usr/lib/crt1.o`。
+  SDK 由来の crt1.o が旧フラグでビルドされているだけ。必要なら LDFLAGS に `-Wl,-w`。
+- Tiger の `ps -p <pid>` は存在しない PID でも exit 0 になることがある（監視スクリプト誤検出）。
+  → `ps -p PID -o state=` が空かどうかで判定する。
+- `pgrep` は Tiger に無い。
+
+### 進行中
+`30_deps`（openssl3 / libffi / sqlite / readline / gdbm）→ その後 `40_build_cpython`。
