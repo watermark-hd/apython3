@@ -194,3 +194,21 @@ isl → **gcc 14.2.0 bottle pour**。次の関門は「gcc bottle が pour で�
 ### メモ
 `__DARWIN_UNIX03` 未定義起因の似た問題（例外シグネチャ差）が他にも出る可能性。
 必要なら CFLAGS に `-D__DARWIN_UNIX03=1` を検討（ただし広範に効くので慎重に）。
+
+## 2026-08-30 (8) 壁 #4: フレームワークヘッダ全欠落 → _scproxy
+
+- 進捗: .o 125→260、.so 64。core / python リンク / freeze / 大半の拡張は通過。
+- `_scproxy.o` で停止。原因: **/System/Library/Frameworks/*/Headers も丸ごと剥がされている**
+  （/usr/include が空だったのと同根、2022 頃の部分再インストール）。
+  復元した CFBase.h が `CoreServices.framework/Frameworks/CarbonCore.framework/Headers/
+  MacTypes.h` を参照するが、CoreServices アンブレラのサブ framework Headers が無い。
+- 当面の対処: `Modules/Setup.local` に `*disabled* / _scproxy` を追記して無効化。
+  `_scproxy` は macOS のシステム環境設定からプロキシ自動検出する専用モジュール。
+  ヘッドレス／Django 用途では不要（urllib は http_proxy 等の環境変数で動く）。
+- 恒久対処（要 sudo、ユーザー起床後）: `scripts/08_fixup_frameworks.sh` で
+  CoreFoundation / CoreServices(+サブ) / Carbon / Security / SystemConfiguration /
+  ApplicationServices の Headers を 10.4u SDK から実 framework へ復元。
+  その後 Setup.local の該当行を消して再ビルドすれば _scproxy も入る。
+
+### 進行中
+`make -j1` 再開（PID 29588）。残り拡張モジュール → 最終リンク → make install。
