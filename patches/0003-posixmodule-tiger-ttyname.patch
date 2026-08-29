@@ -1,0 +1,28 @@
+CPython 3.12: os_ttyname_impl は POSIX の `int ttyname_r(int,char*,size_t)`
+（0/errno を返す）を前提。しかし Tiger 10.4 は __DARWIN_UNIX03 が既定で未定義
+（UNIX03 は 10.5 から既定）のため <unistd.h> は旧シグネチャ
+`char *ttyname_r(int,char*,size_t)`（buffer か NULL を返す）を宣言する。
+→ gcc-14 で `int ret = ttyname_r(...)` が -Werror=int-conversion で失敗。
+
+スレッド安全でない `ttyname()`（常に char* 返し・全環境で同一）に置き換える。
+os.ttyname() は並行呼び出しされることがまず無く、3.2 以前の CPython と同じ挙動。
+
+--- a/Modules/posixmodule.c
++++ b/Modules/posixmodule.c
+@@ -3262,13 +3262,12 @@ os_ttyname_impl(PyObject *module, int fd)
+     if (buffer == NULL) {
+         return PyErr_NoMemory();
+     }
+-    int ret = ttyname_r(fd, buffer, size);
+-    if (ret != 0) {
++    char *name = ttyname(fd);
++    if (name == NULL) {
+         PyMem_RawFree(buffer);
+-        errno = ret;
+         return posix_error();
+     }
+-    PyObject *res = PyUnicode_DecodeFSDefault(buffer);
++    PyObject *res = PyUnicode_DecodeFSDefault(name);
+     PyMem_RawFree(buffer);
+     return res;
+ }

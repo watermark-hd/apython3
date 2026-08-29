@@ -181,3 +181,16 @@ isl → **gcc 14.2.0 bottle pour**。次の関門は「gcc bottle が pour で�
 
 ### 進行中
 `make -j1` 再開。次の壁待ち。
+
+## 2026-08-29 (7) 壁 #3: ttyname_r のシグネチャ (posixmodule.c)
+
+- Tiger は `__DARWIN_UNIX03` が既定で未定義（UNIX03 既定化は 10.5 から）。
+  そのため `<unistd.h>` は旧宣言 `char *ttyname_r(int,char*,size_t)` を出す。
+  CPython は POSIX の `int ttyname_r(...)` 前提 → gcc-14 の `-Werror=int-conversion` で失敗。
+- `patches/0003-posixmodule-tiger-ttyname.patch`：`os_ttyname_impl` を
+  スレッド非安全な `ttyname()`（全環境で char* 返し）に置換。3.2 以前と同じ挙動。
+- perl で当てて make 再開（PID 27892）。
+
+### メモ
+`__DARWIN_UNIX03` 未定義起因の似た問題（例外シグネチャ差）が他にも出る可能性。
+必要なら CFLAGS に `-D__DARWIN_UNIX03=1` を検討（ただし広範に効くので慎重に）。
