@@ -2,3 +2,5 @@
 work/
 dl/
 logs/*.log
+dist/
+brew-backup-*/

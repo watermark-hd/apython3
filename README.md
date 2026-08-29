@@ -1,82 +1,142 @@
-# apython3 — Python 3.12 for PowerPC (iBook G4 / Mac OS X 10.4.11 Tiger)
+# apython3 — CPython 3.12 on Mac OS X 10.4 "Tiger" (PowerPC)
 
-古い PowerPC Mac でモダンな Python Web 開発（Flask / Django）をするために、
-**Tiger 10.4.11 上で CPython 3.12 をネイティブビルド**する。
+Build scripts, patches, and a field report for getting a **modern Python 3.12
+with pip, Flask and Django running on a PowerPC Mac running Mac OS X 10.4.11
+Tiger** — the last macOS that boots on PowerPC, released 2005.
 
-## ターゲット実機
+As far as I can tell this combination had no prior art: Python 3.10/3.11 have
+been built for **Leopard** PPC by the MacPorts/tigerbrew communities, but not
+3.12, and not on **Tiger**.
+
+## Result
+
+Built and verified on an **iBook G4 (PowerBook6,5), 1.2 GHz 7447A, 1.25 GB RAM,
+Mac OS X 10.4.11**:
+
+```
+Python 3.12.11 (main, Aug 30 2026) [GCC 14.2.0]
+sys.byteorder = 'big'   platform = macOS-10.4.11-Power_Macintosh-powerpc-32bit
+
+pip 26.2.1 · OpenSSL 3.5.7 · SQLite 3.50.4
+imports OK (no failures): ssl, hashlib, _hashlib, ctypes, sqlite3, lzma, bz2,
+  zlib, decimal, readline, socket, select, zoneinfo, _datetime, _csv, json,
+  xml.etree, concurrent.futures, multiprocessing, asyncio, _scproxy, ...
+_ctypes big-endian: qsort() + Python callback → [1,2,3,4,5]   (libffi closures OK)
+TLS: real HTTPS handshake to pypi.org → 200
+
+pip install flask        → Flask 3.1.3, GET / → 200   (markupsafe C ext built natively → PPC wheel)
+pip install "django<5.3" → Django 5.2.17, migrate OK, runserver → 200
+```
+
+Only `_tkinter` is missing (no Tcl/Tk; irrelevant for web work).
+
+### What works / what doesn't
 
 | | |
 |---|---|
-| 機種 | iBook G4 (PowerBook6,5) / G4 7450 **1.2GHz 単コア** / RAM 1.25GB |
-| OS | Mac OS X **10.4.11 Tiger**（Darwin 8.11、ビッグエンディアン、32bit ppc） |
-| Xcode | 2.0（`MacOSX10.4u SDK` は未導入。ネイティブ = `/usr/include` 直参照） |
-| 既存 | tigerbrew インストール済み（Formula ツリー展開済／git checkout ではない） |
-| 接続 | `ssh ibook`（M2 mac から） |
+| ✅ | pure-Python packages; C-extension packages that build against this toolchain |
+| ✅ | Flask, Django (+ SQLite), HTTPS/TLS, pip, `ctypes` (big-endian verified) |
+| ❌ | anything needing Rust — `cryptography>=3.4`, `pydantic-core`, `orjson`, `ruff`, `polars` … → pin `cryptography<3.4`; Django core needs no `cryptography` |
+| △ | `numpy` / `scipy` / `Pillow` / `lxml` — heavy C extensions, not attempted here |
 
-## 戦略
+## The machine it was built on
 
-- **クロスではなくネイティブ**。出来上がるのはどちらでも本物の PPC バイナリだが、
-  CPython のビルド系はネイティブ前提で、Darwin-PPC はメンテされたクロス標的ではない。
-  「机の横で数日放置」できるのでネイティブで押す。
-- **toolchain は自力ビルドしない**。tigerbrew の `gcc` formula が 14.2.0 で
-  `:tiger_altivec` の bottle（プリビルド）を持つ。C11/C17 は問題なし。
-- C 依存も tigerbrew：`openssl3`(3.5.x) / `libffi`(3.4.7) / `sqlite` / `xz` /
-  `readline` / `gdbm` / `zlib`。
-- CPython は python.org のソースから。`.tgz` を使う（GNU tar 1.14 は `.xz` 不可）。
-  PGO/LTO はオフ。`patches/*.patch` を当てて回す。
+| | |
+|---|---|
+| Model | iBook G4 (PowerBook6,5), G4 7447A **1.2 GHz single core**, 1.25 GB RAM |
+| OS | Mac OS X **10.4.11** (Darwin 8.11), **big-endian**, 32-bit PowerPC |
+| Dev tools at start | Xcode **2.0** — no `MacOSX10.4u` SDK, and this install had a **stripped `/usr/include` (2 files) and no framework headers** (a partial system reinstall at some point) |
+| Package manager | tigerbrew, present but non-functional (see below) |
+| Driven from | an Apple-silicon Mac over `ssh ibook`; all heavy work runs on the iBook under `nohup` |
 
-## 実行方法（M2 側から）
+## Strategy
+
+- **Native build, not cross.** The resulting interpreter is a real PowerPC
+  binary either way; "native/cross" only describes where the *compiler* runs.
+  CPython's build system assumes native, and Darwin/PPC is not a maintained
+  cross target, so cross-compiling means fighting `configure` the whole way.
+- **Don't build the toolchain by hand.** tigerbrew's `gcc` formula is 14.2.0
+  with a prebuilt `tiger_altivec` bottle — GCC 14 handles C11/C17 fine.
+- **Vendor the C deps from tigerbrew**: `openssl3` (3.5.7), `libffi` (3.4.7),
+  `sqlite`, `xz`, `readline`, `gdbm`, `zlib`.
+- **CPython from python.org source** (`.tgz` — GNU tar 1.14 has no `.xz`),
+  PGO/LTO off, with the four patches in [`patches/`](patches/).
+
+## Build procedure
+
+Everything is driven from a modern Mac via `./run.sh <script>` (rsync → run on
+the iBook under `nohup` → tail). Steps that need `root` on the iBook are run by
+hand there (`sudo bash ~/apython3/scripts/NN_*.sh`).
 
 ```sh
-# --- 前提: toolchain 環境づくり（Tiger 税。ここが本番前の山） ---
-./run.sh 05_xcode25               # Xcode 2.5 DMG 検証 + 手動インストール手順表示
-#   ↑ 表示された hdiutil/installer コマンドを iBook で手実行（root パスワード要）
-./run.sh 11_rebootstrap_brew      # 現行 tigerbrew を /usr/local に上書き（pkgutil バグ等を解消）
-./run.sh 12_cctools               # cctools/ld64 をソースビルド → bottle が pour 可能に
+# 0. one-time toolchain environment (the "Tiger tax")
+#    Xcode 2.5 DMG → extract payloads with pax (the .mpkg installer is broken on Tiger)
+sudo bash scripts/06_xcode25_extract.sh     # MacOSX10.4u SDK + gcc 4.0.1 + cctools-622
+sudo bash scripts/07_fixup_usrlib.sh        # restore /usr/include + crt1.o/libSystemStubs from SDK
+sudo bash scripts/08_fixup_frameworks.sh    # restore CoreFoundation/CoreServices/Carbon/... headers
+./run.sh 11_rebootstrap_brew                # current tigerbrew over /usr/local
+./run.sh 13_patch_brew                      # os/mac.rb: guard pkgutil (absent on Tiger)
 
-# --- ここから Python ---
-./run.sh 10_brew_bootstrap        # gpatch / pkg-config / xz
-./run.sh 20_toolchain             # gcc 14（bottle。ダメならソース）
-./run.sh 30_deps                  # openssl3 / libffi / sqlite / readline / gdbm / zlib
-./run.sh 40_build_cpython         # ★本体ビルド（1〜3時間 + patch 反復）
-./run.sh 45_smoke                 # ssl / ctypes(qsort callback) / sqlite / TLS 実接続
-./run.sh 50_pip                   # pip 最新化 + 証明書
-./run.sh 60_web                   # flask / django 疎通
+# 1. toolchain + deps
+./run.sh 10_brew_bootstrap                  # gpatch, pkg-config, xz
+./run.sh 20_toolchain                       # gcc 14.2.0  (brew install --force-bottle gcc)
+./run.sh 30_deps                            # openssl3, libffi, sqlite, readline, gdbm, zlib
 
-./scripts/pull_logs.sh            # iBook のログを logs/ に回収
+# 2. CPython
+./run.sh 40_build_cpython                   # download, patch, configure, make, make install
+#   RESUME=1 ./run.sh 40_build_cpython      # continue an interrupted make without re-configuring
+./run.sh 45_smoke                           # imports, ctypes callback, TLS, sqlite
+
+# 3. web stack + package
+./run.sh 50_pip                             # pip upgrade + cert wiring
+./run.sh 60_web                             # pip install flask / django, runserver smoke test
+./run.sh 70_package                         # relocatable tarball + .dmg in dist/
 ```
 
-`run.sh` は rsync 後、iBook 側で `nohup` 実行するので SSH が切れても継続する。
+## The four source patches
 
-## いまの状態（2026-08-29）
+All are the same shape: **CPython 3.12 assumes any `__APPLE__` target has an API
+that actually arrived in 10.5 or 10.6.**
 
-- 環境調査完了。tigerbrew は **機能不全**（bottle が pour 不可 / 10.4u SDK 無し /
-  brew 0.9.5 が pkgutil 不在でハードエラー）。詳細は `notes/obstacles.md`。
-- 方針: **Path C 継続 — Xcode 2.5 → tigerbrew 再ブートストラップ → cctools → gcc**。
-- Xcode 2.5 DMG（903MB, md5 3bd6c24d…）を iBook の `~/apython3/dl/` に取得中。
-  取得後、ユーザーが `sudo installer` で導入 → `11` → `12` へ。
+| patch | problem |
+|---|---|
+| [`0001-thread_pthread-tiger-native-id`](patches/0001-thread_pthread-tiger-native-id.patch) | `pthread_threadid_np()` (10.6+) — fall back to `pthread_mach_thread_np()` |
+| [`0002-posixmodule-tiger-no-copyfile`](patches/0002-posixmodule-tiger-no-copyfile.patch) | `<copyfile.h>` / `fcopyfile()` / `COPYFILE_*` (10.5+) — `#if 0` the 4 blocks |
+| [`0003-posixmodule-tiger-ttyname`](patches/0003-posixmodule-tiger-ttyname.patch) | Tiger defaults `__DARWIN_UNIX03` off → `ttyname_r` has the legacy `char *` signature — use `ttyname()` |
+| `_scproxy` | needs SystemConfiguration→CoreServices→CarbonCore headers (restored by `08_fixup_frameworks.sh`); `urllib.request` imports it unconditionally on darwin, so it can't just be disabled |
 
-## 想定される詰まりどころ
+Plus one tigerbrew fix ([`13_patch_brew.sh`](scripts/13_patch_brew.sh)):
+`os/mac.rb`'s `pkgutil_info()` raises `ENOENT` on Tiger (no `/usr/sbin/pkgutil`),
+which kills every `make install`.
 
-`notes/obstacles.md` に逐次記録。要点：
+The full blow-by-blow — every wall and how it was cleared — is in
+[`notes/obstacles.md`](notes/obstacles.md).
 
-- **ビッグエンディアン + libffi**：`_ctypes` がビルドできても実行時に落ちる可能性。
-  `45_smoke` の qsort コールバックで早期検知する。
-- **Tiger に無い libc**：`clock_gettime`/`getentropy`/`utimensat`/`preadv` など →
-  CPython 側フォールバックで大半は通る。`_posixsubprocess` は要注意（過去に ppc で報告あり）。
-- **`_decimal`**：バンドル libmpdec の設定が PPC32-BE で `universal` に落ちるか。
-- **`cryptography`（Rust）**：PPC Tiger では実質不可。Django/Flask コアは不要。
-  必要になったら `cryptography<3.4`（CFFI 版）を検討。
-- **証明書**：`ca-certificates` formula が無いので `curl.se/ca/cacert.pem` を取得して
-  `$PREFIX/etc/cacert.pem` に置き、`SSL_CERT_FILE` / pip global.cert に設定。
-
-## レイアウト
+## Layout
 
 ```
-env.sh              共有変数（PY_VERSION, PREFIX=$HOME/apython312, CC=gcc-14 ...）
-run.sh              M2→iBook ランナー（rsync + nohup + tail）
-scripts/            00_recon .. 60_web、pull_logs
-patches/            CPython ソースへの *.patch（-p1）
-notes/obstacles.md  詰まりと対処の記録
-logs/               ビルドログ（iBook から回収）
+run.sh              driver: rsync repo to the iBook, run a script under nohup, tail
+env.sh              shared vars (PY_VERSION, PREFIX=$HOME/apython312, CC=gcc-14, …)
+scripts/            05..70, numbered in build order
+patches/            *.patch applied to the CPython source (patch -p1)
+packaging/          install.command + PACKAGE_README.txt for the distributable
+notes/obstacles.md  the field report
+dist/               built package (gitignored; see Releases)
 ```
+
+## Using the prebuilt package
+
+See [Releases](../../releases) for `apython312-3.12.11-macosx10.4-powerpc.dmg`
+(a relocatable tree — vendored `libssl`/`libcrypto`/`libsqlite3`/`libffi`/… with
+`@loader_path` install names — plus a double-clickable `install.command`).
+Needs a G4 (AltiVec) or better on 10.4.x.
+
+## Credits
+
+Toolchain and bottles from [tigerbrew](https://github.com/mistydemeo/tigerbrew)
+and the wider [macos-powerpc](https://macos-powerpc.org) / MacRumors PowerPC
+community. Built with the help of Claude (Anthropic).
+
+## License
+
+MIT — see [LICENSE](LICENSE).
