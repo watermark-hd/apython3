@@ -273,3 +273,20 @@ Django 5.2.17 が動作。** 当初調査した限り前例のない組み合わ
 2. 公開: README をビルドガイド化 → GitHub、MacRumors PPC 板、
    tigerbrew へ PR（os/mac.rb の pkgutil 修正 + patches/0001-0003）
 3. TiBook への移送スクリプト
+
+## 2026-08-30 (11) パッケージ化 + 公開
+
+- `70_package.sh`: `~/apython312` を再配置可能化。.so が引く 8 dylib
+  （libssl/libcrypto/libsqlite3/libffi/liblzma/libreadline/libgdbm/libz）を
+  `lib/_vendor/` に同梱し install name を `@loader_path/../../_vendor/…` に書換。
+  ハマり: `@loader_path` 相対が 1 つ足りず（.so は lib/python3.12/lib-dynload/）→ `../../`。
+  別パス起動テスト（ssl/sqlite3）PASS。
+- `hdiutil create` は Tiger の SSH 越しで `装置が設定されていません` → dmg は M2 側で生成。
+- 生成物: `dist/apython312-3.12.11-macosx10.4-powerpc.{tar.bz2,dmg}`（各 ~50MB）+ install.command
+- 公開: git 履歴を watermark-hd に付け替え、
+  https://github.com/watermark-hd/apython3 に push、
+  Release v3.12.11 に dmg / tar.bz2 を添付。
+
+### まだやってない（任意）
+- MacRumors PowerPC 板への投稿（ユーザー）
+- tigerbrew への PR: `os/mac.rb` の pkgutil ガード + `python@3.12` formula（要相談）
