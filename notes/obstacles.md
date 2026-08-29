@@ -4,6 +4,30 @@
 
 ---
 
+## 2026-08-29 (2) Xcode 2.5 導入 → tigerbrew 復活 → **bottle pour 成功**
+
+- Xcode 2.5 の DMG（archive.org, md5 一致）を iBook に取得。
+- CLI `installer` は古い形式 pkg のスクリプトでコケる（`DeveloperTools.pkg` が
+  "The upgrade failed"）→ **`06_xcode25_extract.sh` で pax 直展開**に切替：
+  - `MacOSX10.4.Universal.pkg` → `/Developer`（SDK は `./SDKs/...` 起点なので注意）
+  - `DeveloperToolsCLI.pkg` / `gcc4.0.pkg` / `DevToolsSystem.pkg` → `/`
+  - 結果: `MacOSX10.4u.sdk` 導入 / `gcc-4.0.1 build 5370` / `cctools-622.9~2`
+- `-isysroot /Developer/SDKs/MacOSX10.4u.sdk` 付きの素コンパイル・リンクが通ることを確認。
+- `11_rebootstrap_brew.sh` で現行 mistydemeo/tigerbrew を `/usr/local` に上書き。
+  - ハマり: Tiger の GNU tar 1.14 は `--strip-components` 非対応 → 素展開＋単一トップ処理。
+  - ハマり: Tiger の `head` は `-c` 非対応 → gzip 整合性チェックは `gzip -t` に変更。
+  - git ビルドは重いので既定スキップ（`INSTALL_GIT=1` で有効化）。
+- **`brew install --force-bottle xz` が pour 成功**（`xz 5.8.1` 動作）。
+  → 再ブート済みコード（pkgutil ハードエラー解消）＋ 新 cctools-622.9 の
+    `install_name_tool` で bottle の Mach-O を扱えるようになった。
+  → **`12_cctools`（cctools ソースビルド）は不要になった可能性大**。
+
+### 次アクション（実行中）
+- `10_brew_bootstrap`（gpatch/pkg-config/xz）→ `20_toolchain`（`brew install gcc` = 14.2.0 bottle）
+- その後 `30_deps` → `40_build_cpython`
+
+---
+
 ## 2026-08-29 環境調査（完了）
 
 - iBook G4 は **Tiger 10.4.11**（当初 Leopard 想定だったが実機は Tiger）。
