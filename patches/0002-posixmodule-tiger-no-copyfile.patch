@@ -1,0 +1,50 @@
+CPython 3.12: Modules/posixmodule.c は __APPLE__ なら <copyfile.h> / fcopyfile() /
+COPYFILE_* が常にあると決め打ちしている。これらは macOS 10.5 (Leopard) で追加され
+Tiger 10.4 には無い（<copyfile.h> not found で posixmodule.o が失敗）。
+
+copyfile 関連の 4 ブロックを #if 0 で無効化する。os._fcopyfile は shutil の
+高速パス専用で、無くても generic なコピーにフォールバックするだけ。
+
+--- a/Modules/posixmodule.c
++++ b/Modules/posixmodule.c
+@@ -276,7 +276,7 @@
+ #ifdef HAVE_SYS_SENDFILE_H
+ #  include <sys/sendfile.h>
+ #endif
+
+-#if defined(__APPLE__)
++#if 0  /* Tiger 10.4: <copyfile.h> is 10.5+ */
+ #  include <copyfile.h>
+ #endif
+
+--- a/Modules/posixmodule.c
++++ b/Modules/posixmodule.c
+@@ -11131,7 +11131,7 @@
+ #endif /* HAVE_SENDFILE */
+
+
+-#if defined(__APPLE__)
++#if 0  /* Tiger 10.4: fcopyfile() is 10.5+ */
+ /*[clinic input]
+ os._fcopyfile
+
+--- a/Modules/posixmodule.c
++++ b/Modules/posixmodule.c
+@@ -16700,7 +16700,7 @@
+ #endif  /* HAVE_EVENTFD && EFD_CLOEXEC */
+
+-#if defined(__APPLE__)
++#if 0  /* Tiger 10.4: COPYFILE_* from <copyfile.h> (10.5+) */
+     if (PyModule_AddIntConstant(m, "_COPYFILE_DATA", COPYFILE_DATA)) return -1;
+     if (PyModule_AddIntConstant(m, "_COPYFILE_STAT", COPYFILE_STAT)) return -1;
+     if (PyModule_AddIntConstant(m, "_COPYFILE_ACL", COPYFILE_ACL)) return -1;
+--- a/Modules/clinic/posixmodule.c.h
++++ b/Modules/clinic/posixmodule.c.h
+@@ -7161,7 +7161,7 @@
+ #endif /* defined(HAVE_SENDFILE) && !defined(__APPLE__) && !(defined(__FreeBSD__) || defined(__DragonFly__)) */
+
+-#if defined(__APPLE__)
++#if 0  /* Tiger 10.4: fcopyfile() is 10.5+ */
+
+ PyDoc_STRVAR(os__fcopyfile__doc__,
+ "_fcopyfile($module, in_fd, out_fd, flags, /)\n"

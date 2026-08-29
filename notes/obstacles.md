@@ -165,3 +165,19 @@ isl → **gcc 14.2.0 bottle pour**。次の関門は「gcc bottle が pour で�
 
 ### 進行中
 `make -j1` 再開（PID 25462）。次の壁が出たら都度パッチ。
+
+## 2026-08-29 (6) 壁 #2: copyfile.h (posixmodule.c)
+
+- `Modules/posixmodule.c:282` が `#include <copyfile.h>`（Darwin の copyfile()、
+  macOS 10.5 で追加、Tiger に無い）を `#if defined(__APPLE__)` で決め打ち。
+  configure チェックも無い。SDK にもヘッダ自体が無い。
+- copyfile 関連 4 ブロックを `#if 0` で無効化（`patches/0002-posixmodule-tiger-no-copyfile.patch`）:
+  1. `#include <copyfile.h>`（posixmodule.c ~281）
+  2. `os._fcopyfile` clinic 実装ブロック（~11134）
+  3. `_COPYFILE_*` 定数登録（~16702）
+  4. clinic の `OS__FCOPYFILE_METHODDEF` 定義（clinic/posixmodule.c.h ~7164）
+- `os._fcopyfile` は shutil の高速パス専用。無くても generic コピーにフォールバックする。
+- その場で perl で当てて make 再開（PID 27042、125+ .o 保持）。
+
+### 進行中
+`make -j1` 再開。次の壁待ち。
