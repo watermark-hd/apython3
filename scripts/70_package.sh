@@ -60,10 +60,11 @@ for lib in "$VEND"/*.dylib; do
     "$INT" -change "$dep" "@loader_path/$(basename "$dep")" "$lib"
   done
 done
-# .so 側: /usr/local/... を @loader_path/../_vendor/<name> に
+# .so 側: /usr/local/... を @loader_path/../../_vendor/<name> に
+#   .so は lib/python3.12/lib-dynload/ にあり、_vendor は lib/_vendor/ なので ../../
 for so in "$PKGROOT"/lib/python3.12/lib-dynload/*.so; do
   for dep in $("$OTOOL" -L "$so" | grep -oE '/usr/local/[^ ]+\.dylib'); do
-    "$INT" -change "$dep" "@loader_path/../_vendor/$(basename "$dep")" "$so"
+    "$INT" -change "$dep" "@loader_path/../../_vendor/$(basename "$dep")" "$so"
   done
 done
 
