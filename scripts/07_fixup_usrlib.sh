@@ -14,7 +14,7 @@ echo "== /usr/include を SDK から復元（既存ファイルは上書きし�
 n=$(find /usr/include -type f 2>/dev/null | wc -l | tr -d ' ')
 echo "  現在 $n files"
 if [ "$n" -lt 100 ]; then
-  ( cd "$SDK/usr/include" && /usr/bin/pax -rw -pe . /usr/include/ )
+  ( cd "$SDK/usr/include" && /bin/pax -rw -pe . /usr/include/ )
   echo "  -> $(find /usr/include -type f | wc -l | tr -d ' ') files"
 else
   echo "  十分あるのでスキップ"
@@ -37,7 +37,7 @@ for fw in CoreFoundation CoreServices SystemConfiguration Security ApplicationSe
   elif [ -d "$SDK/System/Library/Frameworks/$fw.framework/Headers" ]; then
     # 実フレームワークにヘッダだけ足す（バイナリは触らない）
     mkdir -p "$h"
-    ( cd "$SDK/System/Library/Frameworks/$fw.framework/Headers" && /usr/bin/pax -rw -pe . "$h/" )
+    ( cd "$SDK/System/Library/Frameworks/$fw.framework/Headers" && /bin/pax -rw -pe . "$h/" )
     echo "  + $fw ヘッダ復元"
   else
     echo "  ? $fw ヘッダ SDK にも無し"
