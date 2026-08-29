@@ -32,7 +32,7 @@ done
 echo "== フレームワークのヘッダ有無（Python が使う分） =="
 for fw in CoreFoundation CoreServices SystemConfiguration Security ApplicationServices; do
   h="/System/Library/Frameworks/$fw.framework/Headers"
-  if [ -d "$h" ]; then
+  if [ -d "$h" ] && [ -n "$(ls -A "$h" 2>/dev/null)" ]; then
     echo "  = $fw OK"
   elif [ -d "$SDK/System/Library/Frameworks/$fw.framework/Headers" ]; then
     # 実フレームワークにヘッダだけ足す（バイナリは触らない）
