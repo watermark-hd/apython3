@@ -23,7 +23,7 @@ else
     brew_installed "$d" || { echo "!! $d ビルド失敗"; exit 1; }
   done
   echo "==== brew install gcc（gmp/mpfr/libmpc/isl/cctools/ld64 は導入済み → gcc bottle を pour） ===="
-  "$BREW" install $ENVSTD gcc 2>&1 | tail -60
+  "$BREW" install $ENVSTD --force-bottle gcc 2>"$BREW" install $ENVSTD gcc 2>&11 | tail -60
 fi
 
 echo
