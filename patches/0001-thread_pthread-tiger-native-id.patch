@@ -1,0 +1,24 @@
+CPython 3.12: PyThread_get_thread_native_id() は __APPLE__ なら
+pthread_threadid_np() が常にあると決め打ちしているが、これは macOS 10.6 で
+追加された関数で Tiger 10.4 には無い（gcc-14 の -Werror=implicit-function-declaration
+で thread.o のコンパイルが失敗する）。
+
+Tiger にある pthread_mach_thread_np()（mach スレッドポート = 実質のカーネル
+スレッドID）にフォールバックする。
+
+--- a/Python/thread_pthread.h
++++ b/Python/thread_pthread.h
+@@ -328,8 +328,13 @@ PyThread_get_thread_native_id(void)
+     if (!initialized)
+         PyThread_init_thread();
+ #ifdef __APPLE__
+     uint64_t native_id;
++#if defined(HAVE_PTHREAD_THREADID_NP)
+     (void) pthread_threadid_np(NULL, &native_id);
++#else
++    /* Tiger 10.4: pthread_threadid_np is 10.6+; use mach thread port */
++    native_id = (uint64_t)pthread_mach_thread_np(pthread_self());
++#endif
+ #elif defined(__linux__)
+     pid_t native_id;
+     native_id = syscall(SYS_gettid);

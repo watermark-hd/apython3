@@ -148,3 +148,20 @@ isl → **gcc 14.2.0 bottle pour**。次の関門は「gcc bottle が pour で�
 
 ### 進行中
 `30_deps`（openssl3 / libffi / sqlite / readline / gdbm）→ その後 `40_build_cpython`。
+
+## 2026-08-29 (5) CPython 3.12.11 ビルド開始 — 1件目のパッチ
+
+- 依存は全部揃った（openssl3 3.5.7 / libffi 3.4.7 / sqlite 3.50.4 / readline 8.2.13 / gdbm 1.23 / xz / zlib）。
+- `configure` は 10.6+ 系関数（clock_gettime, getentropy, utimensat, preadv,
+  pthread_condattr_setclock …）を正しく「無し」判定。CPython 側フォールバックで通る。
+- **1件目の壁**: `Python/thread_pthread.h:334` で `pthread_threadid_np()`（macOS 10.6+、
+  Tiger に無い）を `#ifdef __APPLE__` で決め打ち呼び出し → gcc-14 の
+  `-Werror=implicit-function-declaration` で `thread.o` コンパイル失敗。
+  → `patches/0001-thread_pthread-tiger-native-id.patch`：`pthread_mach_thread_np(pthread_self())`
+    （mach スレッドポート、Tiger にある）にフォールバック。その場で当てて make 再開（97 .o 保持）。
+- 他の未ガード Darwin 10.6+ API は core/thread/posix/ctypes を grep した限り無し。
+- `40_build_cpython.sh` に `RESUME=1` を追加（Makefile 既存なら download/extract/patch/
+  configure をスキップして make だけ継続 → G4 で再ビルドの無駄を避ける）。
+
+### 進行中
+`make -j1` 再開（PID 25462）。次の壁が出たら都度パッチ。

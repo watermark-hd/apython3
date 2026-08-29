@@ -28,17 +28,20 @@ echo "sha256: $(openssl dgst -sha256 "$DL/$TARBALL" 2>/dev/null | awk '{print $N
   [ "$got" = "$PY_SHA256" ] || { echo "!! sha256 不一致 ($got != $PY_SHA256)"; exit 1; }
 }
 
-# ---- 展開 ----
-rm -rf "$SRCDIR"
-( cd "$WORK" && gzip -dc "$DL/$TARBALL" | tar xf - )
-
-# ---- パッチ ----
-if ls "$HERE"/patches/*.patch >/dev/null 2>&1; then
-  for p in "$HERE"/patches/*.patch; do
-    echo "==== apply $(basename "$p") ===="
-    ( cd "$SRCDIR" && "$BREW_PREFIX/opt/gpatch/bin/patch" -p1 < "$p" ) \
-      || ( cd "$SRCDIR" && /usr/bin/patch -p1 < "$p" )
-  done
+# ---- 展開 & パッチ（RESUME=1 かつ Makefile 既存なら丸ごとスキップ） ----
+if [ "${RESUME:-0}" = 1 ] && [ -f "$SRCDIR/Makefile" ]; then
+  echo "==== RESUME: 既存ツリーで make を継続（download/extract/patch/configure スキップ） ===="
+  SKIP_CONFIGURE=1
+else
+  rm -rf "$SRCDIR"
+  ( cd "$WORK" && gzip -dc "$DL/$TARBALL" | tar xf - )
+  PATCH="$BREW_PREFIX/opt/gpatch/bin/patch"; [ -x "$PATCH" ] || PATCH=/usr/bin/patch
+  if ls "$HERE"/patches/*.patch >/dev/null 2>&1; then
+    for p in "$HERE"/patches/*.patch; do
+      echo "==== apply $(basename "$p") ===="
+      ( cd "$SRCDIR" && "$PATCH" -p1 --forward < "$p" ) || { echo "!! パッチ失敗: $p"; exit 1; }
+    done
+  fi
 fi
 
 # ---- 依存パス収集 ----
@@ -57,20 +60,21 @@ export CFLAGS="-O2 -pipe"
 
 # ---- configure ----
 cd "$SRCDIR"
-echo "==== configure ===="
-./configure \
-  --prefix="$PREFIX" \
-  --with-openssl="$OSSL" \
-  --with-system-ffi \
-  --with-computed-gotos \
-  --with-ensurepip=install \
-  --enable-ipv6 \
-  --disable-test-modules \
-  2>&1 | tee "$HERE/logs/40_configure.log"
-
-echo
-echo "==== configure が検出したモジュール状況（末尾） ===="
-tail -40 "$HERE/logs/40_configure.log"
+if [ "${SKIP_CONFIGURE:-0}" != 1 ]; then
+  echo "==== configure ===="
+  ./configure \
+    --prefix="$PREFIX" \
+    --with-openssl="$OSSL" \
+    --with-system-ffi \
+    --with-computed-gotos \
+    --with-ensurepip=install \
+    --enable-ipv6 \
+    --disable-test-modules \
+    2>&1 | tee "$HERE/logs/40_configure.log"
+  echo
+  echo "==== configure が検出したモジュール状況（末尾） ===="
+  tail -40 "$HERE/logs/40_configure.log"
+fi
 
 # ---- make ----
 echo "==== make（G4 単コア。1〜3時間） ===="
