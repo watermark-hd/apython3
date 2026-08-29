@@ -4,6 +4,40 @@
 
 ---
 
+## 2026-08-29 (3) toolchain 環境の修復 — 完了
+
+真因: **この Tiger は `/usr/include` がほぼ空（2 files）**、`/usr/lib` も
+`crt1.o`/`gcrt1.o`/`dylib1.o`/`bundle1.o`/`libSystemStubs.a` 等が欠落。
+2022年頃に部分再インストールされた形跡（libSystem 等の日付が Jan 2022）。
+→ `-isysroot` 無しの素リンクが `ld: can't locate file for: -lcrt1.o` で全滅し、
+  brew のソースビルドが全部これで死んでいた。
+
+対処（`07_fixup_usrlib.sh`、sudo bash で実行）:
+- `/usr/include` を 10.4u SDK から pax で丸ごと復元（2 → 2516 files）
+- `/usr/lib` に SDK 由来の `.o/.a/.dylib` で欠落分を補完（BLAS/LAPACK も来た）
+- `CoreFoundation`/`CoreServices`/`SystemConfiguration`/`Security`/`ApplicationServices`
+  のフレームワークヘッダを実フレームワークへ復元
+- **`MACOSX_DEPLOYMENT_TARGET=10.4` 必須**：未設定だと gcc-4.0 が 10.1 を既定にして
+  `-undefined dynamic_lookup`（bundle=Python C拡張）が弾かれる
+
+結果: exe / dylib / **bundle** が bare gcc でリンク OK。
+`brew install mpfr` がプレーン環境（superenv 迂回）で正常にコンパイル継続。
+
+補足:
+- superenv の `Library/ENV/4.3/cc` シムは shebang が `/System/Library/Frameworks/
+  Ruby.framework/...`（Leopard+ パス、Tiger に無い）で実行不能。
+  → brew は素の env で動くので実害なし。念のため 20/30 は `--env=std` 指定に。
+- iBook の長時間ジョブを foreground ssh で回すと切断時に SIGHUP 死。
+  必ず iBook 側 `nohup`（mpfr が一度これで make 完了直後に殺された）。
+- M2→iBook の `rsync` がしばしば 2分でタイムアウト → `scp` で個別転送に切替。
+
+### 進行中
+`20_toolchain`（旧版）が gcc 依存を順にビルド中: gmp(bottle済) → mpfr → libmpc →
+isl → **gcc 14.2.0 bottle pour**。次の関門は「gcc bottle が pour できるか
+（cctools-622.9 の install_name_tool で足りるか）」と「gcc-14 が C11 を通すか」。
+
+---
+
 ## 2026-08-29 (2) Xcode 2.5 導入 → tigerbrew 復活 → **bottle pour 成功**
 
 - Xcode 2.5 の DMG（archive.org, md5 一致）を iBook に取得。
