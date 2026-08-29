@@ -212,3 +212,34 @@ isl → **gcc 14.2.0 bottle pour**。次の関門は「gcc bottle が pour で�
 
 ### 進行中
 `make -j1` 再開（PID 29588）。残り拡張モジュール → 最終リンク → make install。
+
+## 2026-08-30 (9) ★ CPython 3.12.11 ビルド完成 + pip + big-endian _ctypes 動作 ★
+
+- `_scproxy` は framework ヘッダ復元（08_fixup_frameworks.sh）後に無事ビルド。
+  → `Lib/urllib/request.py` が darwin で `_scproxy` を無条件 import しているため
+    `_scproxy` 必須（無効化すると urllib.request ごと死んで pip も動かない）。
+- `Setup.local` から disabled 行を除去 → `make`（Setup 変更で組み込みモジュール群を再コンパイル）
+  → `make install` → **ensurepip 成功、pip 25.0.1 導入**。
+
+### 完成物
+```
+Python 3.12.11 (main, Aug 30 2026, 06:05:11) [GCC 14.2.0]
+/Users/watermark/apython312/bin/python3.12
+sys.byteorder = big / macOS-10.4.11-Power_Macintosh-powerpc-32bit
+```
+- import OK（FAIL なし）: ssl, hashlib, _hashlib, ctypes, sqlite3, lzma, bz2, zlib,
+  decimal, readline, socket, select, struct, array, zoneinfo, unicodedata,
+  _datetime, _csv, json, xml.etree, concurrent.futures, multiprocessing, asyncio
+- OpenSSL 3.5.7 / pip 25.0.1
+- **`_ctypes` big-endian OK**: `qsort` + Python コールバック（libffi クロージャ）が
+  `[1,2,3,4,5]` を正しく返す。引数マーシャリング両方向 OK。
+- 未ビルド: `_tkinter`(Tcl/Tk 無し・不要) のみ。他は 10 disabled（nis 等）/ 1 missing(xxsubtype)。
+
+### 適用パッチ（patches/）
+- 0001 thread_pthread: pthread_threadid_np → pthread_mach_thread_np
+- 0002 posixmodule: copyfile.h / fcopyfile / COPYFILE_* を #if 0
+- 0003 posixmodule: ttyname_r → ttyname（Tiger は UNIX03 既定オフ）
+
+### 残タスク
+- 45_smoke の TLS(pypi 実接続) / sqlite 結果確認
+- 50_pip（証明書設定）→ 60_web（flask / django）
