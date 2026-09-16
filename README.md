@@ -8,6 +8,11 @@ As far as I can tell this combination had no prior art: Python 3.10/3.11 have
 been built for **Leopard** PPC by the MacPorts/tigerbrew communities, but not
 3.12, and not on **Tiger**.
 
+**Download:** get the pre-built `apython312-3.12.11-macosx10.4-powerpc.dmg` (or
+`.tar.bz2`) from the [Releases page](https://github.com/watermark-hd/apython3/releases)
+&mdash; not the green "Code" button above, which only has the build scripts, not the
+built Python itself.
+
 ## Result
 
 Built and verified on an **iBook G4 (PowerBook6,5), 1.2 GHz 7447A, 1.25 GB RAM,
